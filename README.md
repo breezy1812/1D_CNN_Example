@@ -20,14 +20,14 @@ MatsurikaG.dll 函式庫(以下簡稱本庫) 為專輔助於`處理`、`演算`�
 利用`NNlayers`類別，我們可先嘗試宣告單一層神經網路，這邊我們以卷積層舉例如下
 
 ```
-NNlayers C1 = new NNlayers(NNlayers.Layers_family.Convolution, num_input, maps_size, window_size, deep_input, Padding_is_same);
+NNlayers C1 = new NNlayers(NNlayers.Layers_family.Convolution, num_input, num_maps, window_size, deep_input, Padding_is_same);
 ```
 
 `Layers_family`是我們在本庫預設好的一群列舉，可在其中選擇一項當作該層屬性，
 而convolution層中與以往不同的是，我們須設定更多參數。
 
 * num_input -- 輸入數據的維度
-* mpas_size -- 卷積層的使用maps數量
+* num_maps -- 卷積層的使用maps數量
 * windows_size -- 卷積層的大小
 * deep_input -- 輸入數據的深度(使用多卷積層時，表示上一層的maps數量，若為單一卷積層或第一層卷積層，則為1)
 * Padding_is_same -- 卷積過程是否維持原維度，是則為True,否則False
@@ -51,21 +51,37 @@ NNlayers C1 = new NNlayers(NNlayers.Layers_family.Convolution, num_input, maps_s
      NNlayers[] ANNarray = Nlist.toArray();
            
 上述範例中，首層卷積層的輸入深度為1，這邊可省略此參數。
-但當若要組建多層卷積層結構，可參考以下範例:
+池化層(Poooling)這邊我們提供了最常用的極值池化(Maxpooling)以及均值池化(Meanpooling)，
+宣告的方式類似，如下
+```
+NNlayers P1 = new NNlayers(NNlayers.Layers_family.Maxpool, num_input, Deep_input, pooling_size);
+```
+這邊須注意，經過卷積層後，根據使用的卷積map的使用數量，會產生一定的深度(Deep)，在以池化的角度，是一組尚未組合的數據集。
+宣告公式中的`num_inpur`並非數據的總和，而是經過卷積厚的數據維度。而`Deep_input`則就是深度，也就是上一層卷積層的`num_maps`
+
+Batch Normalization，BN層用法又有些不同，雖說BN常與卷積層共存，但使用上並不像池化層或二次卷積層有深度問題，
+我們也樂見在其他架構上使用BN來幫助我們提高NN學習的效率，
+所以這邊我的BN的呼叫方法與過去的全連接層、激化層的呼叫方法相同:
+```
+NNlayers B1 = new NNlayers(NNlayers.Layers_family.BN, num_input, num_output);
+```
+
+
+若要組建多層卷積層、並與全連接層串連的結構，可參考以下範例:
 
      NNlayers C1 = new NNlayers(NNlayers.Layers_family.Convolution, input, Deep1, 3, false);
      NNlayers C2 = new NNlayers(NNlayers.Layers_family.Maxpool, (input - 3 + 1), Deep1, 2);
      int numCov = (int)Math.Ceiling((double)(input - 3 + 1) / 2);
-     NNlayers N1 = new NNlayers(NNlayers.Layers_family.BN, numCov * Deep1, numCov * Deep1);
-     NNlayers H2 = new NNlayers(NNlayers.Layers_family.ReLU, numCov * Deep1, numCov * Deep1);
+     NNlayers N3 = new NNlayers(NNlayers.Layers_family.BN, numCov * Deep1, numCov * Deep1);
+     NNlayers H4 = new NNlayers(NNlayers.Layers_family.ReLU, numCov * Deep1, numCov * Deep1);
             
-     NNlayers C3 = new NNlayers(NNlayers.Layers_family.Convolution, numCov, Deep2, 3, Deep1, false);
-     NNlayers C4 = new NNlayers(NNlayers.Layers_family.Meanpool, (numCov - 3 + 1) , Deep2, 2);
+     NNlayers C5 = new NNlayers(NNlayers.Layers_family.Convolution, numCov, Deep2, 3, Deep1, false);
+     NNlayers C6 = new NNlayers(NNlayers.Layers_family.Meanpool, (numCov - 3 + 1) , Deep2, 2);
      int numCov2 = (int)Math.Ceiling((double)(numCov - 3 + 1) / 2) * Deep2;
             
-     NNlayers N2 = new NNlayers(NNlayers.Layers_family.BN, numCov2, numCov2);
-     NNlayers H3 = new NNlayers(NNlayers.Layers_family.ReLU, numCov2, numCov2);
-     NNlayers N10 = new NNlayers(NNlayers.Layers_family.Affine, numCov2, output);
+     NNlayers N7 = new NNlayers(NNlayers.Layers_family.BN, numCov2, numCov2);
+     NNlayers H8 = new NNlayers(NNlayers.Layers_family.ReLU, numCov2, numCov2);
+     NNlayers N9 = new NNlayers(NNlayers.Layers_family.Affine, numCov2, output);
      Nlist.Add(C1);
      Nlist.Add(C2);
      Nlist.Add(N3);
@@ -76,6 +92,10 @@ NNlayers C1 = new NNlayers(NNlayers.Layers_family.Convolution, num_input, maps_s
      Nlist.Add(H8);
      Nlist.Add(N9);
 
+以下幾點須注意:
+* 可從`C5`層看到，將上一層的深度`Deep1`當作輸入，並繪出新的深度`Deep2`
+* 在進入BN層`N3`和`N7`的參數，並非原本在卷積層的輸入數量，而是要再乘上深度。
+* 同上述，在進入激化層`H8`以及全連接層`N9`時，輸入的參數數量皆是乘上了最後一次卷積的深度。
 
 ### NeualNetwork
 與前篇相同，此類別為主要學習核心，將上述的`ANNarray`輸入後即可完成一份完整的ANN學習單位，並透過調整參數、匯入數據來完成以下工作
